@@ -26,7 +26,6 @@ pydantic-settings==2.12.0
 pydantic_core==2.41.5
 PyMySQL==1.1.2
 python-dotenv==1.2.1
-python-jose==3.5.0
 python-multipart==0.0.20
 rsa==4.9.1
 six==1.17.0
@@ -35,3 +34,4 @@ starlette==0.50.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.38.0
+PyJWT

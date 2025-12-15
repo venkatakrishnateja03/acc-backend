@@ -11,7 +11,7 @@ class MediaBase(BaseModel):
     created_at: datetime
 
     class Config:
-        from_attributes = True   # Pydantic v2 (for v1: orm_mode = True)
+        from_attributes = True  # Pydantic v2 (for v1: orm_mode = True)
 
 
 class UserBase(BaseModel):
@@ -22,3 +22,14 @@ class UserBase(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
