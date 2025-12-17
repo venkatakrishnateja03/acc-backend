@@ -1,19 +1,4 @@
-# services:
-#   postgres:
-#     image: postgres:16
-#     environment:
-#       POSTGRES_USER: myuser
-#       POSTGRES_PASSWORD: mysecret
-#       POSTGRES_DB: mydb
-#     ports:
-#       - "5432:5432"
-#     volumes:
-#       - pgdata:/var/lib/postgresql/data
 
-# volumes:
-#   pgdata:
-# # docker compose up -d 
-# # psql -U myuser -d mydb
 services:
   postgres:
     image: postgres:16
@@ -28,6 +13,8 @@ services:
 
   app:
     build: ./BACKEND
+    env_file:
+      - ./BACKEND/.env
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./BACKEND:/code
@@ -38,3 +25,5 @@ services:
 
 volumes:
   pgdata:
+# # docker compose up -d 
+# # psql -U myuser -d mydb

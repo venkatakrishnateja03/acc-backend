@@ -2,7 +2,7 @@ import os
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=".env")
 FILE_ENCRYPTION_KEY = os.getenv("FILE_ENCRYPTION_KEY")
 fernet = Fernet(FILE_ENCRYPTION_KEY.encode())
 _secret_key = os.getenv("SECRET_KEY")
