@@ -30,13 +30,17 @@ class User(Base):
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
+        nullable=False,
     )
 
-    media_files = relationship(
-        "Media",
-        back_populates="owner",
+   
+    workspace_memberships = relationship(
+        "WorkspaceMember",
+        back_populates="user",
         cascade="all, delete-orphan",
     )
 
-
-# dob,org,profilepic
+    uploaded_media = relationship(
+        "Media",
+        back_populates="uploader",
+    )

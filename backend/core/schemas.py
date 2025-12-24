@@ -1,16 +1,16 @@
 from datetime import datetime
-from pydantic import BaseModel, computed_field
 from typing import List, Optional
-
+from pydantic import BaseModel, computed_field
 
 class MediaResponse(BaseModel):
     id: int
+    workspace_id: int
     original_filename: str
     size_bytes: int
     mime_type: str | None
     description: Optional[str]
+    tags: Optional[str]
     created_at: datetime
-    tags: Optional[str]  # 👈 THIS IS THE MISSING PIECE
 
     @computed_field
     @property
@@ -21,12 +21,6 @@ class MediaResponse(BaseModel):
         from_attributes = True
 
 
-class UpdateMediaRequest(BaseModel):
-    original_filename: Optional[str]
-    description: Optional[str]
-    tags: Optional[List[str]]
-
-
 class MediaListResponse(BaseModel):
     page: int
     page_size: int
@@ -34,8 +28,15 @@ class MediaListResponse(BaseModel):
     items: List[MediaResponse]
 
 
+class UpdateMediaRequest(BaseModel):
+    original_filename: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
 class MediaBase(BaseModel):
     id: int
+    workspace_id: int
     original_filename: str
     stored_filename: str
     size_bytes: int
@@ -52,11 +53,13 @@ class MediaBase(BaseModel):
 
     @classmethod
     def from_orm(cls, obj):
-        return cls(**obj.__dict__, file_type=cls.compute_file_type(obj.mime_type))
+        return cls(
+            **obj.__dict__,
+            file_type=cls.compute_file_type(obj.mime_type),
+        )
 
     class Config:
-        from_attributes = True  # Pydantic v2 (for v1: orm_mode = True)
-
+        from_attributes = True
 
 class UserBase(BaseModel):
     id: int
@@ -73,12 +76,51 @@ class CreateUserRequest(BaseModel):
     email: str
     password: str
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-
 class RenameFileRequest(BaseModel):
-    old_filename: str
     new_filename: str
+
+
+# Documents
+class DocumentCreateRequest(BaseModel):
+    title: str
+    # Either `content` (text document) or `media_id` (file-backed document) must be provided.
+    content: str | None = None
+    media_id: int | None = None
+    doc_type: str | None = "text"
+
+
+class DocumentResponse(BaseModel):
+    id: int
+    workspace_id: int
+    title: str
+    media_id: int | None = None
+    doc_type: str
+    version: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Comments
+class CommentCreateRequest(BaseModel):
+    target_type: str
+    target_id: int
+    body: str
+
+
+class CommentResponse(BaseModel):
+    id: int
+    workspace_id: int
+    author_id: int | None
+    target_type: str
+    target_id: int
+    body: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

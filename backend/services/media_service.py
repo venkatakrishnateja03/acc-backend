@@ -1,15 +1,17 @@
 import os
+import os
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from models.media import Media
 from sqlalchemy.exc import IntegrityError
 
 
-def get_user_file(db: Session, user_id: int, filename: str) -> Media:
+def get_media_by_filename(db: Session, workspace_id: int, filename: str) -> Media:
+    """Workspace-scoped lookup by original filename."""
     media = (
         db.query(Media)
         .filter(
-            Media.user_id == user_id,
+            Media.workspace_id == workspace_id,
             Media.original_filename == filename,
         )
         .first()
@@ -21,11 +23,12 @@ def get_user_file(db: Session, user_id: int, filename: str) -> Media:
     return media
 
 
-def get_user_file_id(db: Session, user_id: int, media_id: int) -> Media:
+def get_media_by_id(db: Session, workspace_id: int, media_id: int) -> Media:
+    """Workspace-scoped lookup by ID."""
     media = (
         db.query(Media)
         .filter(
-            Media.user_id == user_id,
+            Media.workspace_id == workspace_id,
             Media.id == media_id,
         )
         .first()
