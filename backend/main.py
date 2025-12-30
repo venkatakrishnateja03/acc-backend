@@ -9,6 +9,7 @@ from db.database import init_db, get_db
 from routers import files, auth
 from routers import workspaces
 from routers import documents, comments
+from routers import users
 
 app = FastAPI()
 init_db(app)
@@ -35,6 +36,7 @@ app.include_router(auth.router)
 app.include_router(workspaces.router)
 app.include_router(documents.router)
 app.include_router(comments.router)
+app.include_router(users.router)
 db_dependency = Annotated[Session, Depends(get_db)]
 
 

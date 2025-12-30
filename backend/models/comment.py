@@ -19,5 +19,7 @@ class Comment(Base):
     target_id: Mapped[int] = mapped_column(Integer, nullable=False)
     body: Mapped[str] = mapped_column(String(2000), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Relationship omitted to avoid import-time mapper resolution issues;
+    # routers will query the `users` table when they need author metadata.
 
     # TODO: add soft-delete, edit history, and indexed (target_type,target_id)

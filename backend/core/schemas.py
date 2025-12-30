@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 from pydantic import BaseModel, computed_field
 
@@ -106,6 +106,32 @@ class DocumentResponse(BaseModel):
         from_attributes = True
 
 
+# User profile
+class UserProfileResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    first_name: str | None = None
+    last_name: str | None = None
+    avatar_url: str | None = None
+    date_of_birth: date | None = None
+    bio: str | None = None
+    created_at: datetime
+    recent_workspaces: list[dict] | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserProfileUpdateRequest(BaseModel):
+    username: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    avatar_url: str | None = None
+    date_of_birth: date | None = None
+    bio: str | None = None
+
+
 # Comments
 class CommentCreateRequest(BaseModel):
     target_type: str
@@ -117,10 +143,26 @@ class CommentResponse(BaseModel):
     id: int
     workspace_id: int
     author_id: int | None
+    author_username: str | None = None
+    author_email: str | None = None
+    author_avatar_url: str | None = None
     target_type: str
     target_id: int
     body: str
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Workspace member response with user info for frontend display
+class MemberResponse(BaseModel):
+    id: int
+    workspace_id: int
+    user_id: int
+    role: str
+    username: str | None = None
+    email: str | None = None
 
     class Config:
         from_attributes = True

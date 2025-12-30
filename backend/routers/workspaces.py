@@ -7,6 +7,7 @@ from models.workspace import Workspace, WorkspaceMember
 from models.user import User
 
 from pydantic import BaseModel
+from core.schemas import MemberResponse
 
 
 class CreateWorkspaceRequest(BaseModel):
@@ -70,12 +71,23 @@ def list_members(
     current_user: User = Depends(get_current_user),
     _member = Depends(lambda workspace_id, db=Depends(get_db), current_user=Depends(get_current_user):
                       db.query(WorkspaceMember).filter_by(workspace_id=workspace_id, user_id=current_user.id).first() or (_ for _ in ()).throw(HTTPException(status_code=403, detail="Not a workspace member"))),
-):
+) -> list[MemberResponse]:
+    # Return member rows augmented with username/email for frontend display
     members = db.query(WorkspaceMember).filter_by(workspace_id=workspace_id).all()
-    return members
+    result = []
+    for m in members:
+        result.append({
+            "id": m.id,
+            "workspace_id": m.workspace_id,
+            "user_id": m.user_id,
+            "role": m.role,
+            "username": getattr(m.user, "username", None),
+            "email": getattr(m.user, "email", None),
+        })
+    return result
 
 
-@router.post("/{workspace_id}/members", status_code=201)
+@router.post("/{workspace_id}/members", status_code=201, response_model=MemberResponse)
 def add_member_endpoint(
     workspace_id: int,
     payload: AddMemberRequest,
@@ -104,10 +116,17 @@ def add_member_endpoint(
 
     # TODO: create audit log (write-only)
 
-    return member
+    return {
+        "id": member.id,
+        "workspace_id": member.workspace_id,
+        "user_id": member.user_id,
+        "role": member.role,
+        "username": getattr(member.user, "username", None),
+        "email": getattr(member.user, "email", None),
+    }
 
 
-@router.patch("/{workspace_id}/members/{user_id}")
+@router.patch("/{workspace_id}/members/{user_id}", response_model=MemberResponse)
 def patch_member(
     workspace_id: int,
     user_id: int,
@@ -133,7 +152,14 @@ def patch_member(
     db.refresh(target)
 
     # TODO: audit log role change
-    return target
+    return {
+        "id": target.id,
+        "workspace_id": target.workspace_id,
+        "user_id": target.user_id,
+        "role": target.role,
+        "username": getattr(target.user, "username", None),
+        "email": getattr(target.user, "email", None),
+    }
 
 
 @router.delete("/{workspace_id}/members/{user_id}")

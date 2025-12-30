@@ -1,6 +1,7 @@
 from sqlalchemy import String, Integer, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from db.database import Base
+from sqlalchemy import Date, Text
 
 
 class User(Base):
@@ -44,3 +45,11 @@ class User(Base):
         "Media",
         back_populates="uploader",
     )
+
+    # Profile fields
+    first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    date_of_birth: Mapped[Date | None] = mapped_column(Date, nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
