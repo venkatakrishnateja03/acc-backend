@@ -163,6 +163,7 @@ class MemberResponse(BaseModel):
     role: str
     username: str | None = None
     email: str | None = None
+    avatar_url: str | None = None
 
     class Config:
         from_attributes = True

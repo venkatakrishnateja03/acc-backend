@@ -5,6 +5,7 @@ from db.database import get_db
 from routers.auth import get_current_user
 from models.workspace import Workspace, WorkspaceMember
 from models.user import User
+import re
 
 from pydantic import BaseModel
 from core.schemas import MemberResponse
@@ -74,15 +75,33 @@ def list_members(
 ) -> list[MemberResponse]:
     # Return member rows augmented with username/email for frontend display
     members = db.query(WorkspaceMember).filter_by(workspace_id=workspace_id).all()
+    def _resolve_avatar(val: str | None) -> str | None:
+        if not val:
+            return None
+        m = re.match(r"^media:(\d+):(\d+)$", val)
+        if m:
+            ws, mid = m.group(1), m.group(2)
+            return f"/workspaces/{ws}/media/{mid}/download"
+        return val
+
     result = []
     for m in members:
+        u = getattr(m, "user", None)
+        avatar = None
+        if u:
+            for k in ("avatar_url", "avatar", "avatarUrl", "profile_image_url"):
+                v = getattr(u, k, None)
+                if v:
+                    avatar = _resolve_avatar(v)
+                    break
         result.append({
             "id": m.id,
             "workspace_id": m.workspace_id,
             "user_id": m.user_id,
             "role": m.role,
-            "username": getattr(m.user, "username", None),
-            "email": getattr(m.user, "email", None),
+            "username": getattr(u, "username", None),
+            "email": getattr(u, "email", None),
+            "avatar_url": avatar,
         })
     return result
 
@@ -123,6 +142,7 @@ def add_member_endpoint(
         "role": member.role,
         "username": getattr(member.user, "username", None),
         "email": getattr(member.user, "email", None),
+        "avatar_url": next((getattr(member.user, k, None) for k in ("avatar_url", "avatar", "avatarUrl", "profile_image_url") if getattr(member.user, k, None)), None),
     }
 
 
@@ -159,6 +179,7 @@ def patch_member(
         "role": target.role,
         "username": getattr(target.user, "username", None),
         "email": getattr(target.user, "email", None),
+        "avatar_url": next((getattr(target.user, k, None) for k in ("avatar_url", "avatar", "avatarUrl", "profile_image_url") if getattr(target.user, k, None)), None),
     }
 
 
