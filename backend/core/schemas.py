@@ -167,3 +167,25 @@ class MemberResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class CreateTeamRequest(BaseModel):
+    name: str
+
+
+class TeamResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class TeamMemberResponse(BaseModel):
+    id: int
+    team_id: int
+    user_id: int
+    username: str | None = None
+    email: str | None = None
+    avatar_url: str | None = None
+
+    class Config:
+        from_attributes = True

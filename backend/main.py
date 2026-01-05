@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends
 import os
 from fastapi.middleware.cors import CORSMiddleware
-from models import user, media
+from models import user, media,team,team_member
 from db.database import engine
 from sqlalchemy.orm import Session
 from typing import Annotated
@@ -9,7 +9,7 @@ from db.database import init_db, get_db
 from routers import files, auth
 from routers import workspaces
 from routers import documents, comments
-from routers import users
+from routers import users,teams
 
 app = FastAPI()
 init_db(app)
@@ -37,6 +37,7 @@ app.include_router(workspaces.router)
 app.include_router(documents.router)
 app.include_router(comments.router)
 app.include_router(users.router)
+app.include_router(teams.router)
 db_dependency = Annotated[Session, Depends(get_db)]
 
 

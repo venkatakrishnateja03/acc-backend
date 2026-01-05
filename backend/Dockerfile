@@ -18,4 +18,4 @@ COPY . /app
 # ensure startup script is executable (safe even if missing)
 RUN [ -f /app/startup.sh ] && chmod +x /app/startup.sh || true
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
