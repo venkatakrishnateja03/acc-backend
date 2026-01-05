@@ -1,57 +1,84 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Form
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    HTTPException,
+    Depends,
+    Query,
+    Form,
+)
 from sqlalchemy.orm import Session
 from typing import Optional
 from io import BytesIO
-import os, uuid
-from core.schemas import MediaListResponse
-from db.database import get_db
-from routers.auth import get_current_user
-from models.user import User
-from models.media import Media
-from core.config import fernet, FILES_DIR
-from core.schemas import RenameFileRequest, MediaResponse
-from core.schemas import UpdateMediaRequest
-from services.media_service import (
-    get_user_file,
-    rename_file as rename_media,
-    delete_file as delete_media,
-    update_media,
-    get_user_file_id,
-)
+import os
+import uuid
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy import asc, desc
 
-router = APIRouter(prefix="/files", tags=["files"])
+from db.database import get_db
+from routers.auth import get_current_user
+from models.user import User
+from models.media import Media
+from dependencies.permissions import require_workspace_member, require_workspace_role
 
+from core.config import fernet, FILES_DIR
+from core.schemas import (
+    MediaListResponse,
+    MediaResponse,
+    UpdateMediaRequest,
+)
+
+router = APIRouter(
+    prefix="/workspaces/{workspace_id}/media",
+    tags=["media"],
+)
+def get_media_or_404(
+    db: Session,
+    workspace_id: int,
+    media_id: int,
+) -> Media:
+    media = (
+        db.query(Media)
+        .filter_by(id=media_id, workspace_id=workspace_id)
+        .first()
+    )
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+    return media
+
+
+# ======================================================
+# Routes
+# ======================================================
 
 @router.get("/", response_model=MediaListResponse)
-def list_files(
+def list_media(
+    workspace_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _member: User = Depends(require_workspace_member),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    filename: Optional[str] = Query(None, description="Filter by original filename"),
-    type: Optional[str] = Query(
-        None,
-        description="File category: image | video | audio | other",
-        regex="^(image|video|audio|other)$",
-    ),
+    filename: Optional[str] = Query(None),
+    # `type` is optional; when provided we perform a simple mime-type prefix filter.
+    type: Optional[str] = Query(None),
     sort_order: str = Query("desc", regex="^(asc|desc)$"),
 ):
-    query = db.query(Media).filter(Media.user_id == current_user.id)
+    # membership validated by dependency
+
+    query = db.query(Media).filter(Media.workspace_id == workspace_id)
 
     if filename:
         query = query.filter(Media.original_filename.ilike(f"%{filename}%"))
+
     if type:
-        if type in {"image", "video", "audio"}:
-            query = query.filter(Media.mime_type.like(f"{type}/%"))
-        else:  # other
-            query = query.filter(
-                ~Media.mime_type.like("image/%"),
-                ~Media.mime_type.like("video/%"),
-                ~Media.mime_type.like("audio/%"),
-            )
+        t = type.strip().lower()
+        # Allowed simple prefixes to filter by. If `type` doesn't match one of these,
+        # we do no filtering (minimal validation, non-strict).
+        allowed_prefixes = {"image", "video", "audio", "application", "text"}
+        if t in allowed_prefixes:
+            query = query.filter(Media.mime_type.like(f"{t}/%"))
 
     order = asc(Media.created_at) if sort_order == "asc" else desc(Media.created_at)
     query = query.order_by(order)
@@ -68,13 +95,17 @@ def list_files(
 
 
 @router.post("/upload", response_model=MediaResponse)
-async def upload_file(
+async def upload_media(
+    workspace_id: int,
     file: UploadFile = File(...),
     description: str | None = Form(None),
     tags: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _member = Depends(require_workspace_role(["OWNER", "ADMIN", "EDITOR"])),
 ):
+    # membership & role validated by dependency
+
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -86,32 +117,40 @@ async def upload_file(
 
     with open(stored_path, "wb") as f:
         f.write(encrypted)
-    tags_str = tags.strip() if tags else None
 
     media = Media(
-        user_id=current_user.id,
+        workspace_id=workspace_id,
+        uploaded_by=current_user.id,
         original_filename=file.filename,
         stored_filename=stored_filename,
         stored_path=stored_path,
         size_bytes=len(encrypted),
         mime_type=file.content_type,
         description=description,
-        tags=tags_str,
+        tags=tags.strip() if tags else None,
     )
 
     db.add(media)
     db.commit()
     db.refresh(media)
+    try:
+        from services.audit_service import log_event
+
+        log_event(db, workspace_id=workspace_id, actor_id=current_user.id, action="media.upload", detail=media.original_filename)
+    except Exception:
+        pass
     return media
 
 
-@router.get("/download/{filename}")
-def download_file(
-    filename: str,
+@router.get("/{media_id}/download")
+def download_media(
+    workspace_id: int,
+    media_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _member = Depends(require_workspace_member),
 ):
-    media = get_user_file(db, current_user.id, filename)
+    media = get_media_or_404(db, workspace_id, media_id)
 
     if not os.path.exists(media.stored_path):
         raise HTTPException(status_code=404, detail="Stored file missing")
@@ -128,40 +167,48 @@ def download_file(
     )
 
 
-@router.patch("/rename", response_model=MediaResponse)
-def rename_file(
-    payload: RenameFileRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    media = get_user_file(db, current_user.id, payload.old_filename)
-    return rename_media(db, media, payload.new_filename)
-
-
-@router.delete("/{filename}")
-def delete_file(
-    filename: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    media = get_user_file(db, current_user.id, filename)
-    delete_media(db, media)
-    return {"detail": "File deleted successfully"}
-
-
 @router.put("/{media_id}", response_model=MediaResponse)
-def update_media_endpoint(
+def update_media(
+    workspace_id: int,
     media_id: int,
     payload: UpdateMediaRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _member = Depends(require_workspace_role(["OWNER", "ADMIN", "EDITOR"])),
 ):
-    media = get_user_file_id(db, current_user.id, int(media_id))
+    media = get_media_or_404(db, workspace_id, media_id)
 
-    return update_media(
-        db,
-        media,
-        original_filename=payload.original_filename,
-        description=payload.description,
-        tags=payload.tags,
-    )
+    if payload.original_filename is not None:
+        media.original_filename = payload.original_filename
+    if payload.description is not None:
+        media.description = payload.description
+    if payload.tags is not None:
+        media.tags = ",".join(payload.tags)
+
+    db.commit()
+    db.refresh(media)
+    return media
+
+
+@router.delete("/{media_id}")
+def delete_media(
+    workspace_id: int,
+    media_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _member = Depends(require_workspace_role(["OWNER", "ADMIN"])),
+):
+    media = get_media_or_404(db, workspace_id, media_id)
+
+    if os.path.exists(media.stored_path):
+        os.remove(media.stored_path)
+
+    db.delete(media)
+    db.commit()
+    try:
+        from services.audit_service import log_event
+
+        log_event(db, workspace_id=workspace_id, actor_id=current_user.id, action="media.delete", detail=media.original_filename)
+    except Exception:
+        pass
+    return {"detail": "Media deleted"}

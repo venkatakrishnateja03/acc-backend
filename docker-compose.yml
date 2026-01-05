@@ -10,18 +10,29 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U myuser -d mydb" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   app:
-    build: ./BACKEND
+    build: ./backend
     env_file:
-      - ./BACKEND/.env
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./backend/.env
+    # keep existing env_file but provide a sensible DATABASE_URL fallback
+    environment:
+      DATABASE_URL: "postgresql://myuser:mysecret@postgres:5432/mydb"
+      # SECRET_KEY and FILE_ENCRYPTION_KEY should be provided in ./backend/.env
+    command: sh /app/startup.sh
     volumes:
-      - ./BACKEND:/code
+      - ./backend:/app
     ports:
       - "8000:8000"
     depends_on:
       - postgres
+    restart: unless-stopped
 
 volumes:
   pgdata:
